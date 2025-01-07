@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Set API key for OpenAI
-openai_api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEYS")
 if not openai_api_key:
     st.error("OpenAI API Key is not set. Please add it to your environment variables.")
     st.stop()
