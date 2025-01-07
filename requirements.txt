@@ -1,0 +1,14 @@
+streamlit
+faiss-cpu
+numpy
+python-docx
+python-pptx
+PyPDF2
+langchain
+langchain-community
+google-api-python-client
+google-auth
+google-auth-httplib2
+openai
+python-dotenv
+tiktoken
