@@ -66,7 +66,7 @@ class GoogleDriveDownloader:
     def download_files_from_folder(self, folder_id, local_path):
         try:
             query = f"'{folder_id}' in parents and trashed=false"
-            results = self.service.files().list(q=query, fields="files(id, name)").execute()
+            results = self.service.files().list(q=query, fields="files(id, name, mimeType)").execute()
             files = results.get('files', [])
 
             if not files:
@@ -76,7 +76,13 @@ class GoogleDriveDownloader:
             os.makedirs(local_path, exist_ok=True)
 
             for file in files:
-                self._download_file(file['id'], file['name'], local_path)
+                file_id, file_name, mime_type = file['id'], file['name'], file['mimeType']
+                if mime_type == 'application/vnd.google-apps.folder':
+                    # Recursively process nested folders
+                    nested_folder_path = os.path.join(local_path, file_name)
+                    self.download_files_from_folder(file_id, nested_folder_path)
+                else:
+                    self._download_file(file_id, file_name, local_path)
 
         except Exception as e:
             st.error(f"Error downloading files: {e}")
@@ -96,34 +102,36 @@ class GoogleDriveDownloader:
 
 # Functions for processing input and answering questions
 def process_input(input_folder, batch_size=50):
-    """Processes files in the input folder and returns a vectorstore."""
+    """Processes files in the input folder (and its subfolders) and returns a vectorstore."""
     texts = []
 
-    for filename in os.listdir(input_folder):
-        file_path = os.path.join(input_folder, filename)
-        try:
-            if filename.endswith(".pdf"):
-                pdf_reader = PdfReader(file_path)
-                for page in pdf_reader.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        texts.append(page_text)
-            elif filename.endswith(".docx"):
-                doc = Document(file_path)
-                for para in doc.paragraphs:
-                    if para.text:
-                        texts.append(para.text)
-            elif filename.endswith(".pptx"):
-                presentation = Presentation(file_path)
-                for slide in presentation.slides:
-                    for shape in slide.shapes:
-                        if shape.has_text_frame:
-                            texts.append(shape.text)
-            elif filename.endswith(".txt"):
-                with open(file_path, "r", encoding="utf-8") as txt_file:
-                    texts.append(txt_file.read())
-        except Exception as e:
-            st.warning(f"Error processing file {filename}: {e}")
+    # Walk through all files and subdirectories
+    for root, _, files in os.walk(input_folder):
+        for filename in files:
+            file_path = os.path.join(root, filename)
+            try:
+                if filename.endswith(".pdf"):
+                    pdf_reader = PdfReader(file_path)
+                    for page in pdf_reader.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            texts.append(page_text)
+                elif filename.endswith(".docx"):
+                    doc = Document(file_path)
+                    for para in doc.paragraphs:
+                        if para.text:
+                            texts.append(para.text)
+                elif filename.endswith(".pptx"):
+                    presentation = Presentation(file_path)
+                    for slide in presentation.slides:
+                        for shape in slide.shapes:
+                            if shape.has_text_frame:
+                                texts.append(shape.text)
+                elif filename.endswith(".txt"):
+                    with open(file_path, "r", encoding="utf-8") as txt_file:
+                        texts.append(txt_file.read())
+            except Exception as e:
+                st.warning(f"Error processing file {filename}: {e}")
 
     if not texts:
         raise ValueError("No text content extracted from the provided files.")
